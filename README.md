@@ -1,4 +1,4 @@
-# Grocerio — Lista de Compras com Histórico Mensal
+# Grocerio - Lista de Compras com Histórico Mensal
 
 Grocerio é um aplicativo de **lista de compras** em uma única página (HTML + CSS + JS) pensado para rodar direto no **GitHub Pages**. Ele salva tudo no **localStorage** do seu navegador — sem servidor — e mantém **histórico por mês**, com totais e agrupamento por categoria.
 
