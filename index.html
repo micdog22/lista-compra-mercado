@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Grocerio — Lista de Compras com Histórico</title>
+<style>
+:root{
+  --bg:#f7f9fc;
+  --panel:#ffffff;
+  --ink:#0b1220;
+  --muted:#556070;
+  --line:#e6eaf0;
+  --accent:#2563eb;
+  --accent-2:#1d4ed8;
+  --good:#16a34a;
+  --bad:#dc2626;
+  --warn:#d97706;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial,sans-serif;
+  color:var(--ink);
+  background:var(--bg);
+}
+.container{
+  max-width:1100px; margin:24px auto; padding:0 16px;
+}
+header{
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;
+}
+h1{font-size:28px; margin:0}
+small{color:var(--muted)}
+.controls{
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+}
+button, input, select, textarea{
+  font:inherit;
+}
+.btn{
+  background:var(--accent); color:white; border:none; padding:10px 14px; border-radius:10px; cursor:pointer;
+}
+.btn:hover{background:var(--accent-2)}
+.btn.ghost{
+  background:transparent; color:var(--accent); border:1px solid var(--accent);}
+.btn.red{ background:var(--bad);}
+.btn.green{ background:var(--good);}
+.btn.warn{ background:var(--warn); color:#111;}
+.card{
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px;
+  box-shadow:0 6px 20px rgba(2,6,23,.05);
+}
+.grid{
+  display:grid; grid-template-columns: 1fr; gap:16px;
+}
+@media (min-width: 980px){
+  .grid{ grid-template-columns: 1.1fr .9fr; }
+}
+fieldset{
+  border:none; padding:0; margin:0; display:grid; grid-template-columns: 1.8fr .6fr .6fr 1fr 1fr; gap:8px;
+}
+fieldset .row2{ grid-column: 1 / -1; display:flex; gap:8px; align-items:center; }
+fieldset input, fieldset select{ padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:white;}
+table{ width:100%; border-collapse: collapse;}
+th, td{ padding:10px 8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top;}
+tr:last-child td{ border-bottom:none;}
+thead th{ font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
+.badge{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; background:#eef2ff; color:#3730a3;}
+.row-actions{ display:flex; gap:8px; }
+.kpis{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.kpi{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; }
+.kpi .label{ color:var(--muted); font-size:12px;}
+.kpi .value{ font-weight:600; font-size:20px;}
+hr{ border:none; border-top:1px solid var(--line); margin:16px 0;}
+nav.tabs{ display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;}
+.tab{ padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+.tab.active{ background:#eef2ff; border-color:#c7d2fe; color:#3730a3; }
+footer{ color:var(--muted); font-size:12px; margin-top:24px;}
+summary{ cursor:pointer; color:var(--muted); }
+input[type="number"]{ width:100%; }
+input[type="checkbox"]{ transform: scale(1.2); }
+textarea.note{ width:100%; min-height:60px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; }
+.search{ padding:10px 12px; border:1px solid var(--line); border-radius:10px; width:100%; }
+.category-chip{ display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); background:#fff; }
+.total{ font-weight:700;}
+.mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div>
+      <h1>Grocerio</h1>
+      <small>Lista de compras com histórico mensal (salvo no seu navegador via localStorage)</small>
+    </div>
+    <div class="controls">
+      <button class="btn" id="savePurchaseBtn" title="Salva a compra do dia no histórico">Salvar compra</button>
+      <button class="btn ghost" id="exportBtn" title="Exporta dados em JSON">Exportar</button>
+      <label class="btn ghost" for="importFile" title="Importar JSON">
+        Importar
+        <input type="file" id="importFile" accept="application/json" style="display:none">
+      </label>
+      <button class="btn warn" id="resetBtn" title="Zera todos os dados">Zerar tudo</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Lista atual</h2>
+      <form id="itemForm">
+        <fieldset>
+          <input id="name" placeholder="Item (ex.: Arroz 5kg)" required />
+          <input id="qty" type="number" min="1" step="1" value="1" placeholder="Qtd" />
+          <select id="unit">
+            <option value="un">un</option>
+            <option value="kg">kg</option>
+            <option value="g">g</option>
+            <option value="L">L</option>
+            <option value="ml">ml</option>
+          </select>
+          <input id="price" type="number" min="0" step="0.01" placeholder="Preço" />
+          <select id="category">
+            <option value="Geral">Geral</option>
+            <option value="Hortifruti">Hortifruti</option>
+            <option value="Açougue">Açougue</option>
+            <option value="Laticínios">Laticínios</option>
+            <option value="Padaria">Padaria</option>
+            <option value="Bebidas">Bebidas</option>
+            <option value="Limpeza">Limpeza</option>
+            <option value="Higiene">Higiene</option>
+            <option value="Pets">Pets</option>
+          </select>
+          <div class="row2">
+            <input id="search" class="search" placeholder="Pesquisar na lista..." />
+            <button type="submit" class="btn">Adicionar</button>
+          </div>
+        </fieldset>
+      </form>
+
+      <div class="kpis" id="kpis">
+        <div class="kpi">
+          <div class="label">Itens</div>
+          <div class="value" id="kCount">0</div>
+        </div>
+        <div class="kpi">
+          <div class="label">Total estimado</div>
+          <div class="value mono" id="kTotal">R$ 0,00</div>
+        </div>
+        <div class="kpi">
+          <div class="label">Marcados</div>
+          <div class="value" id="kChecked">0</div>
+        </div>
+      </div>
+
+      <table id="listTable" aria-label="Lista de compras">
+        <thead>
+          <tr>
+            <th>Feito</th>
+            <th>Item</th>
+            <th>Qtd</th>
+            <th>Preço</th>
+            <th>Categoria</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="6" class="total">Total da lista: <span id="listTotal" class="mono">R$ 0,00</span></td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <aside class="card">
+      <nav class="tabs" id="monthTabs"></nav>
+      <div id="historyPanel">
+        <h2>Histórico mensal</h2>
+        <p>Selecione um mês acima para ver as compras salvas. Clique em “Salvar compra” para gravar a lista atual com data de hoje.</p>
+        <div id="monthSummary"></div>
+        <hr>
+        <details>
+          <summary>Ferramentas do histórico</summary>
+          <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn ghost" id="addFromMonthBtn">Adicionar do mês ao carrinho</button>
+            <button class="btn ghost" id="exportMonthCsvBtn">Exportar mês (CSV)</button>
+          </div>
+        </details>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    <p>Grocerio © 2025 — Dados ficam apenas no seu navegador (localStorage). Não há servidor.</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  const $$ = sel => document.querySelector(sel);
+  const $$$ = sel => Array.from(document.querySelectorAll(sel));
+  const fmtBRL = v => (v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const today = () => new Date().toISOString().slice(0,10);
+  const ym = (d=new Date()) => d.toISOString().slice(0,7); // YYYY-MM
+
+  const store = {
+    load(key, def){ try{ return JSON.parse(localStorage.getItem(key)) ?? def }catch(e){ return def } },
+    save(key, val){ localStorage.setItem(key, JSON.stringify(val)); },
+    clear(){ localStorage.clear(); }
+  };
+
+  const KEYS = {
+    LIST: "grocerio.v2.items",
+    HISTORY: "grocerio.v2.history"
+  };
+
+  let items = store.load(KEYS.LIST, []);
+  let history = store.load(KEYS.HISTORY, {});
+
+  // --- UI bindings ---
+  const form = $$("#itemForm");
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    const name = $$("#name").value.trim();
+    if(!name) return;
+    const qty = parseFloat($$("#qty").value||"1");
+    const unit = $$("#unit").value;
+    const price = parseFloat($$("#price").value||"0");
+    const cat = $$("#category").value;
+    items.push({ id: crypto.randomUUID(), name, qty, unit, price, category: cat, checked:false, note:"" });
+    persist();
+    form.reset();
+    $$("#qty").value = 1;
+    render();
+  });
+
+  $$("#search").addEventListener("input", render);
+
+  $$("#savePurchaseBtn").addEventListener("click", () => {
+    if(items.length === 0){ alert("A lista está vazia."); return; }
+    const month = ym(new Date());
+    const stamp = new Date().toISOString();
+    const pack = { date: stamp, items: items.map(i=>({...i})) };
+    history[month] = history[month] || [];
+    history[month].push(pack);
+    items = [];
+    persist();
+    render();
+    alert("Compra salva no histórico de " + month + ".");
+  });
+
+  $$("#exportBtn").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify({ items, history }, null, 2)], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "grocerio-backup.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  $$("#importFile").addEventListener("change", ev => {
+    const f = ev.target.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const obj = JSON.parse(reader.result);
+        if(obj.items) items = obj.items;
+        if(obj.history) history = obj.history;
+        persist(); render();
+        alert("Importação concluída.");
+      }catch(e){
+        alert("Arquivo inválido.");
+      }
+    };
+    reader.readAsText(f);
+  });
+
+  $$("#resetBtn").addEventListener("click", () => {
+    if(confirm("Tem certeza que deseja apagar todos os dados?")) {
+      localStorage.removeItem(KEYS.LIST);
+      localStorage.removeItem(KEYS.HISTORY);
+      items=[]; history={}; render();
+    }
+  });
+
+  $$("#addFromMonthBtn").addEventListener("click", () => {
+    const m = state.currentMonth;
+    if(!m || !history[m] || history[m].length===0){ alert("Selecione um mês com compras."); return; }
+    const map = new Map();
+    for(const pkg of history[m]){
+      for(const it of pkg.items){
+        const k = it.name + "|" + it.unit + "|" + it.category + "|" + (it.price||0);
+        if(!map.has(k)){
+          map.set(k, {name:it.name, qty:0, unit:it.unit, price:it.price||0, category:it.category});
+        }
+        map.get(k).qty += parseFloat(it.qty||1);
+      }
+    }
+    for(const v of map.values()){
+      items.push({ id: crypto.randomUUID(), checked:false, note:"", ...v });
+    }
+    persist(); render();
+  });
+
+  $$("#exportMonthCsvBtn").addEventListener("click", () => {
+    const m = state.currentMonth;
+    if(!m || !history[m]){ alert("Selecione um mês."); return; }
+    const rows = [["data","item","qtd","un","preco","categoria"]];
+    for(const pkg of history[m]){
+      for(const it of pkg.items){
+        rows.push([pkg.date, it.name, it.qty, it.unit, (it.price||0).toString().replace(".",","), it.category]);
+      }
+    }
+    const csv = rows.map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `grocerio-${m}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  // --- Render list ---
+  function persist(){
+    store.save(KEYS.LIST, items);
+    store.save(KEYS.HISTORY, history);
+  }
+
+  function render(){
+    renderList();
+    renderKPIs();
+    renderMonths();
+    renderMonthPanel(state.currentMonth);
+  }
+
+  function renderList(){
+    const q = ($$("#search").value||"").toLowerCase();
+    const tbody = $$("#listTable tbody");
+    tbody.innerHTML = "";
+    let total = 0;
+    items
+      .filter(i => i.name.toLowerCase().includes(q) || (i.category||"").toLowerCase().includes(q))
+      .forEach(i => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><input type="checkbox" ${i.checked?"checked":""}></td>
+          <td>
+            <div>${escapeHtml(i.name)}</div>
+            ${i.note?`<small class="muted">${escapeHtml(i.note)}</small>`:""}
+          </td>
+          <td><input type="number" min="0" step="0.01" value="${i.qty||1}" style="width:90px"></td>
+          <td><input type="number" min="0" step="0.01" value="${i.price||0}" style="width:110px"></td>
+          <td><span class="category-chip">${escapeHtml(i.category||"Geral")}</span></td>
+          <td class="row-actions">
+            <button class="btn ghost" data-act="note">Nota</button>
+            <button class="btn ghost" data-act="dup">Duplicar</button>
+            <button class="btn red" data-act="del">Excluir</button>
+          </td>
+        `;
+        // bind
+        tr.querySelector('input[type="checkbox"]').addEventListener("change", ev => { i.checked = ev.target.checked; persist(); renderKPIs(); });
+        const qtyEl = tr.querySelector('input[type="number"]');
+        qtyEl.addEventListener("change", ev => { i.qty = parseFloat(ev.target.value||"0"); persist(); renderKPIs(); renderTotals(); });
+        const priceEl = tr.querySelectorAll('input[type="number"]')[1];
+        priceEl.addEventListener("change", ev => { i.price = parseFloat(ev.target.value||"0"); persist(); renderKPIs(); renderTotals(); });
+        tr.querySelector('[data-act="dup"]').addEventListener("click", () => { items.push({...i, id: crypto.randomUUID(), checked:false}); persist(); render(); });
+        tr.querySelector('[data-act="del"]').addEventListener("click", () => { items = items.filter(x => x.id !== i.id); persist(); render(); });
+        tr.querySelector('[data-act="note"]').addEventListener("click", () => {
+          const txt = prompt("Nota para o item:", i.note||"");
+          if(txt!==null){ i.note = txt; persist(); render(); }
+        });
+        tbody.appendChild(tr);
+        total += (i.qty||0) * (i.price||0);
+      });
+    $$("#listTotal").textContent = fmtBRL(total);
+  }
+
+  function renderTotals(){
+    let total = 0;
+    for(const i of items) total += (i.qty||0)*(i.price||0);
+    $$("#listTotal").textContent = fmtBRL(total);
+  }
+
+  function renderKPIs(){
+    $$("#kCount").textContent = items.length;
+    $$("#kChecked").textContent = items.filter(i=>i.checked).length;
+    let total = 0; for(const i of items) total += (i.qty||0)*(i.price||0);
+    $$("#kTotal").textContent = fmtBRL(total);
+  }
+
+  // --- Months ---
+  const state = { currentMonth: null };
+
+  function monthsAvailable(){
+    return Object.keys(history).sort().reverse();
+  }
+
+  function renderMonths(){
+    const tabs = $$("#monthTabs");
+    tabs.innerHTML = "";
+    const months = monthsAvailable();
+    if(months.length===0){
+      const span=document.createElement("span");
+      span.className="muted"; span.textContent="Sem histórico ainda.";
+      tabs.appendChild(span);
+      return;
+    }
+    for(const m of months){
+      const b = document.createElement("button");
+      b.className = "tab" + (state.currentMonth===m?" active":"");
+      b.textContent = m;
+      b.addEventListener("click", () => { state.currentMonth = m; renderMonths(); renderMonthPanel(m); });
+      tabs.appendChild(b);
+    }
+    if(!state.currentMonth) state.currentMonth = months[0];
+    $$$(".tab").forEach(t => {
+      t.classList.toggle("active", t.textContent === state.currentMonth);
+    });
+  }
+
+  function sumMonth(m){
+    let count=0, sum=0, itemsCount=0;
+    const cat = new Map();
+    for(const pkg of (history[m]||[])){
+      count++;
+      for(const it of pkg.items){
+        itemsCount++;
+        sum += (parseFloat(it.qty)||0)*(parseFloat(it.price)||0);
+        const c = it.category||"Geral";
+        cat.set(c, (cat.get(c)||0) + (parseFloat(it.qty)||0)*(parseFloat(it.price)||0));
+      }
+    }
+    const catArr = Array.from(cat.entries()).sort((a,b)=>b[1]-a[1]);
+    return { purchases:count, total:sum, items:itemsCount, byCat:catArr };
+  }
+
+  function renderMonthPanel(m){
+    const panel = $$("#monthSummary");
+    panel.innerHTML = "";
+    if(!m || !history[m] || history[m].length===0){
+      panel.innerHTML = "<p>Sem compras nesse mês.</p>";
+      return;
+    }
+    const stats = sumMonth(m);
+    const frag = document.createDocumentFragment();
+    const k = document.createElement("div");
+    k.className="kpis";
+    k.innerHTML = `
+      <div class="kpi"><div class="label">Compras</div><div class="value">${stats.purchases}</div></div>
+      <div class="kpi"><div class="label">Itens</div><div class="value">${stats.items}</div></div>
+      <div class="kpi"><div class="label">Total do mês</div><div class="value mono">${fmtBRL(stats.total)}</div></div>
+    `;
+    frag.appendChild(k);
+
+    const cats = document.createElement("div");
+    cats.innerHTML = "<h3>Por categoria</h3>";
+    const ul = document.createElement("ul");
+    for(const [c, v] of stats.byCat){
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="badge">${escapeHtml(c)}</span> — <strong class="mono">${fmtBRL(v)}</strong>`;
+      ul.appendChild(li);
+    }
+    cats.appendChild(ul);
+    frag.appendChild(cats);
+
+    const list = document.createElement("div");
+    list.innerHTML = "<h3>Compras do mês</h3>";
+    for(const pkg of history[m]){
+      const box = document.createElement("div");
+      box.className="card";
+      const dt = new Date(pkg.date);
+      const itemsCount = pkg.items.length;
+      const subtotal = pkg.items.reduce((a,i)=>a + (parseFloat(i.qty)||0)*(parseFloat(i.price)||0), 0);
+      box.innerHTML = `
+        <div style="display:flex; justify-content:space-between; gap:8px; align-items:center;">
+          <div><strong>${dt.toLocaleString('pt-BR')}</strong> — ${itemsCount} itens — <span class="mono">${fmtBRL(subtotal)}</span></div>
+          <div class="row-actions">
+            <button class="btn ghost" data-act="restore">Recarregar para lista</button>
+            <button class="btn red" data-act="remove">Excluir</button>
+          </div>
+        </div>
+      `;
+      const restore = box.querySelector('[data-act="restore"]');
+      restore.addEventListener("click", () => {
+        for(const it of pkg.items){ items.push({ id: crypto.randomUUID(), checked:false, note: it.note||"", name:it.name, qty:it.qty, unit:it.unit, price:it.price, category:it.category }); }
+        persist(); render();
+      });
+      const remove = box.querySelector('[data-act="remove"]');
+      remove.addEventListener("click", () => {
+        if(confirm("Excluir esta compra do histórico?")){
+          history[m] = history[m].filter(x => x !== pkg);
+          if(history[m].length===0) delete history[m];
+          persist(); render();
+        }
+      });
+      frag.appendChild(box);
+    }
+    panel.appendChild(frag);
+  }
+
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])) }
+
+  // initial
+  render();
+
+})();</script>
+</body>
+</html>
